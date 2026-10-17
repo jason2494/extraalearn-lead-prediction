@@ -1,9 +1,9 @@
-
 import streamlit as st
 import requests
+import pandas as pd
 
-# Base URL of the Flask backend
-BACKEND_URL = "http://backend:7860"
+# Public URL of the deployed Flask backend.
+BACKEND_URL = "https://extraalearn-backend-acr3.onrender.com"
 
 # Page title
 st.title("Lead Prediction System")
@@ -26,7 +26,6 @@ digital_media = st.selectbox("Seen Digital Media Ad?", ["Yes", "No"])
 educational_channels = st.selectbox("Heard via Educational Channels?", ["Yes", "No"])
 referral = st.selectbox("Heard via Referral?", ["Yes", "No"])
 
-
 lead_data = {
     "age": age,
     "current_occupation": current_occupation,
@@ -43,17 +42,35 @@ lead_data = {
     "referral": referral
 }
 
-
+# Single prediction
 if st.button("Predict", type='primary'):
-
-    response = requests.post(
-        f"{BACKEND_URL}/v1/predict",
-        json=lead_data
-    )
-
-    if response.status_code == 200:
+    try:
+        response = requests.post(
+            f"{BACKEND_URL}/v1/predict",
+            json=lead_data,
+            timeout=120
+        )
+        response.raise_for_status()
         result = response.json()
         predicted_value = result["Lead"]
-        st.success(f"Predicted Lead Conversion: {predicted_value}")
-    else:
-        st.error("Unable to connect to the prediction API.")
+        if predicted_value == 1:
+            st.success("Predicted Lead Conversion: Likely to convert")
+        else:
+            st.warning("Predicted Lead Conversion: Unlikely to convert")
+    except requests.RequestException:
+        st.error("Unable to connect to the prediction API. The backend may still be starting up - wait a minute and try again.")
+
+st.header("Batch Prediction")
+uploaded = st.file_uploader("Upload a CSV of leads", type="csv")
+if uploaded is not None and st.button("Predict Batch", type='primary'):
+    try:
+        response = requests.post(
+            f"{BACKEND_URL}/v1/predict_batch",
+            files={"file": ("leads.csv", uploaded.getvalue())},
+            timeout=120
+        )
+        response.raise_for_status()
+        results = pd.DataFrame(response.json()["predictions"])
+        st.dataframe(results)
+    except requests.RequestException:
+        st.error("Unable to connect to the prediction API. The backend may still be starting up - wait a minute and try again.")
